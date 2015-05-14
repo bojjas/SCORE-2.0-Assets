@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Chapters feature.
+ */
+
+include_once 'chapters.features.inc';

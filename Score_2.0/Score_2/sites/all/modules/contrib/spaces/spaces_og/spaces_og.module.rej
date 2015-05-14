@@ -1,0 +1,20 @@
+--- spaces_og.module
++++ spaces_og.module
+@@ -279,14 +279,14 @@
+       $node->og_directory = $directory === NULL ? TRUE : $directory;
+       $private = $space->controllers->variable->get('spaces_og_private');
+       $field_langauge = field_language('node', $node, 'group_access');
+-      if ($op == 'update' && $private != $node->group_access[$field_langauge][0]['value']) {
++      /*if ($op == 'update' && $private != $node->group_access[$field_langauge][0]['value']) {
+         // Privacy has changed, update og_public flags, and queue a rebuid.
+         db_query("UPDATE {og_access_post} og_p
+           INNER JOIN {og_ancestry} og_a ON og_p.nid = og_a.nid
+           INNER JOIN {node} n ON og_p.nid = n.nid
+-          SET og_public = %d WHERE og_a.group_nid = %d", ! $private, $node->nid);
++          SET og_public = :private WHERE og_a.group_nid = :nid", array(':private' => ! $private, ':nid' => $node->nid));
+         node_access_needs_rebuild(TRUE);
+-      }
++      }*/
+       $node->og_private = $private === NULL ? FALSE : $private;
+       // TODO determine the D7 equivalent of og_update_group().
+       // og_update_group($node);

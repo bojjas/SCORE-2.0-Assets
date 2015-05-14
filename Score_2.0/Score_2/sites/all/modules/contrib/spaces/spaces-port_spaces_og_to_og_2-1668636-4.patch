@@ -1,0 +1,132 @@
+diff --git a/spaces_og/plugins/space_og.inc b/spaces_og/plugins/space_og.inc
+index 84f94e7..bee0238 100644
+--- a/spaces_og/plugins/space_og.inc
++++ b/spaces_og/plugins/space_og.inc
+@@ -5,6 +5,7 @@
+  */
+ class space_og extends space_type_purl {
+   var $group = NULL;
++  var $group_type = 'node';
+ 
+   /**
+    * Constructor.
+@@ -12,7 +13,7 @@ class space_og extends space_type_purl {
+   function __construct($type, $id = NULL) {
+     parent::__construct($type, $id);
+     // Extend spaces object with og entity.
+-    $this->og = og_get_group('node', $this->id);
++    $this->og = !empty($this->id) ? entity_load_single($this->group_type, $this->id) : NULL;
+   }
+ 
+   /**
+@@ -63,12 +64,11 @@ class space_og extends space_type_purl {
+   function access_space($account = NULL) {
+     global $user;
+     $account = isset($account) ? $account : $user;
+-
+     return parent::access_space($account) && (
+       user_access('administer group') ||
+-      $this->group->{OG_ACCESS_FIELD}[LANGUAGE_NONE][0]['value'] != 1 || // Group is public, allow access
+-      og_is_member($this->og->gid, 'user', $account) || // User is group member, allow access
+-      user_is_anonymous()); // User hasn't logged in -- provide entry point
++      ($this->group->{OG_ACCESS_FIELD} && !$this->group->{OG_ACCESS_FIELD}[$this->group->language][0]['value']) || // Group is public, allow access
++      og_is_member($this->group_type, $this->og->nid, 'user', $account) || // User is group member, allow access
++      user_is_anonymous()); // User hasn't logged in -- pronide entry point
+   }
+ 
+   /**
+@@ -101,14 +101,13 @@ class space_og extends space_type_purl {
+     // Only allow access if: user can administer OG, group is public,
+     // or user is a member.
+     $membership = FALSE;
+-    if ($membership = og_get_group_membership($this->og->gid, 'user', $account->uid)) {
++    if ($membership = og_get_membership($this->group_type, $this->og->nid, 'user', $account->uid)) {
+       $membership = $membership->state;
+     }
+-    $access = $access && (user_access('administer group') || $this->group->{OG_ACCESS_FIELD}[LANGUAGE_NONE][0]['value'] == OG_CONTENT_ACCESS_PUBLIC || $membership);
+-
++    $access = $access && (user_access('administer group') || ($this->group->{OG_ACCESS_FIELD} && !$this->group->{OG_ACCESS_FIELD}[LANGUAGE_NONE][0]['value']) || $membership);
+     // Additional check for group membership if authoring content in this group.
+     if ($op === 'create') {
+-      return $access && og_is_member($this->og->gid, 'user', $account);
++      return $access && og_is_member($this->group_type, $this->og->nid, 'user', $account);
+     }
+     return $access;
+   }
+@@ -120,8 +119,8 @@ class space_og extends space_type_purl {
+     global $user;
+     $account = isset($account) ? $account : $user;
+     // Test whether both user and account belong to current space.
+-    $test_user = og_is_member($this->og->gid, 'user');
+-    $test_account = og_is_member($this->og->gid, FALSE, $account->uid);
++    $test_user = og_is_member($this->group_type, $this->og->nid, 'user');
++    $test_account = og_is_member($this->group_type, $this->og->nid, FALSE, $account->uid);
+     if (($test_user && $test_account) || user_access('view users outside groups')) {
+       return parent::access_user($op, $account);
+     }
+@@ -163,7 +162,7 @@ class space_og extends space_type_purl {
+           }
+ 
+           // If the node belongs to the current active group space, or we're in an allowable other space type, pass thru
+-          if ($this->active && in_array($this->og->gid, $gids)) {
++          if ($this->active && in_array($this->og->nid, $gids)) {
+             return;
+           }
+ 
+@@ -186,11 +185,11 @@ class space_og extends space_type_purl {
+     switch ($base_table) {
+       case 'node':
+         $table = $query->ensure_table('field_data_group_audience', $relationship);
+-        $query->add_where(0, 'field_data_group_audience.group_audience_gid', $this->og->gid, '=');
++        $query->add_where(0, 'field_data_group_audience.group_audience_gid', $this->og->nid, '=');
+         break;
+       case 'users':
+         $table = $query->ensure_table('og_membership', $relationship);
+-        $query->add_where(0, 'og_membership_users.gid', $this->og->gid);
++        $query->add_where(0, 'og_membership_users.gid', $this->og->nid);
+         break;
+     }
+   }
+@@ -215,9 +214,9 @@ class space_og extends space_type_purl {
+    *  User entity.
+    */
+   function og_is_group_admin($group, $account) {
+-    $membership = og_get_group_membership($group->gid, 'user', $account->uid);
++    $membership = og_get_membership($this->group_type, $group->nid, 'user', $account->uid);
+     if (isset($membership->state) && $membership->state == OG_STATE_ACTIVE) {
+-      return og_user_access($group->gid, 'manage group space', $account);
++      return og_user_access($this->group_type, $group->nid, 'administer group', $account);
+     }
+     return FALSE;
+   }
+diff --git a/spaces_og/spaces_og.module b/spaces_og/spaces_og.module
+index 34ccdab..c4c69a0 100644
+--- a/spaces_og/spaces_og.module
++++ b/spaces_og/spaces_og.module
+@@ -279,14 +279,14 @@ function spaces_og_node_update($node, $op = 'update') {
+       $node->og_directory = $directory === NULL ? TRUE : $directory;
+       $private = $space->controllers->variable->get('spaces_og_private');
+       $field_langauge = field_language('node', $node, 'group_access');
+-      if ($op == 'update' && $private != $node->group_access[$field_langauge][0]['value']) {
++      /*if ($op == 'update' && $private != $node->group_access[$field_langauge][0]['value']) {
+         // Privacy has changed, update og_public flags, and queue a rebuid.
+         db_query("UPDATE {og_access_post} og_p
+           INNER JOIN {og_ancestry} og_a ON og_p.nid = og_a.nid
+           INNER JOIN {node} n ON og_p.nid = n.nid
+-          SET og_public = %d WHERE og_a.group_nid = %d", ! $private, $node->nid);
++          SET og_public = :private WHERE og_a.group_nid = :nid", array(':private' => ! $private, ':nid' => $node->nid));
+         node_access_needs_rebuild(TRUE);
+-      }
++      }*/
+       $node->og_private = $private === NULL ? FALSE : $private;
+       // TODO determine the D7 equivalent of og_update_group().
+       // og_update_group($node);
+@@ -639,7 +639,7 @@ function spaces_og_og_context_handler() {
+ 
+   $space = spaces_get_space();
+   if (isset($space->type) && $space->type == 'og') {
+-    $gids[] = $space->og->gid;
++    $gids['node'] = array($space->og->nid);
+   }
+ 
+   return $gids;

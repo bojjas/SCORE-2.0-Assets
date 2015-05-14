@@ -1,0 +1,259 @@
+<?php
+
+function score_permission() {
+  return array(
+    'create mentoring_request' => array(
+      'title' => 'Create Mentoring Request',
+      'description' => 'Allow a user role to create mentorng requests to the system.',
+    )
+  );
+}
+
+/**
+ * Implements hook_menu()
+ */
+function score_menu() {
+  $items = array();
+
+  $items['mentoring/request'] = array(
+    'title' => t('Mentor Match Request'),
+    'page callback' => 'score_mentoring_request_page',
+    'page arguments' => array(2, 3),
+    'access arguments' => array('create mentoring_request'),
+    'weight' => 0,
+  );
+
+  return $items;
+}
+
+
+/* Mentoring Request page */
+function score_mentoring_request_page($mentor_id = NULL, $chapter_id = NULL) {
+
+  if(module_exists('admin')) {
+    admin_suppress();
+  }
+
+  // If we haven't been provided a mentor id or chapter id
+
+  if (TRUE === empty($mentor_id) && TRUE === empty($chapter_id)) {
+
+    // First try to get them from the current space
+    $space = spaces_get_space();
+    dpm($space);
+
+    // If we're in a space and it's a chapter use that one
+    if (NULL != $space && TRUE === isset($space->group) && 'chapter' == $space->group->type) {
+      $chapter = $space->group;
+      drupal_goto('mentoring/request/0/' . $chapter->nid);
+    }
+
+  }
+
+  return drupal_get_form('score_mentoring_request_form');
+}
+
+
+/* Mentoring Request Form */
+function score_mentoring_request_form($form, &$form_state) {
+
+  $form['ci'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Contact Information'),
+  );
+
+  $form['client_nid'] = array(
+    '#type' => 'hidden',
+    '#default_value' => NULL,
+  );
+  $form['ci']['firstname'] = array(
+    '#type' => 'textfield',
+    '#title' => t('First Name'),
+  );
+  $form['ci']['lastname'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Last Name'),
+  );
+
+  $form['ci']['email'] = array(
+    '#type' => 'textfield',
+    '#title' => t('E-Mail Address'),
+    '#required' => TRUE,
+  );
+
+  $form['ci']['email_confirm'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Re-Enter E-Mail Address'),
+    '#required' => TRUE,
+  );
+
+  $form['ci']['phone'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Phone'),
+  );
+
+  $form['ci']['street'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Street'),
+  );
+
+  $form['ci']['postal_code'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Zip Code'),
+    '#maxlength' => 5,
+  );
+
+  $form['mi'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Mentoring Information'),
+  );
+
+  $form['mi']['business_type'] = array(
+    '#type' => 'select',
+    '#title' => t('What type of business do you have?'),
+  );
+
+  $form['mi']['mentoring_nature'] = array(
+    '#type' => 'select',
+    '#title' => t('Select an area you would like to be mentored in'),
+ #   '#required' => TRUE,
+  );
+
+  $form['mi']['question'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Please describe the business questions you need answered here'),
+    '#required' => TRUE,
+    '#rows' => 6,
+  );
+
+  $form['mi']['hear_about_score'] = array(
+    '#type' => 'select',
+    '#title' => t('How did you hear about SCORE?'),
+ #   '#required' => TRUE,
+  );
+
+  $options = array(
+    'Yes' => t('Yes'),
+    'Now' => t('No'),
+  );
+  $form['mi']['business_established'] = array(
+    '#type' => 'radios',
+    '#title' => t('Is your business already established?'),
+    '#options' => $options,
+ #   '#required' => TRUE,
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#description' => t('By submitting a request you agree to SCORE\’s Website Policy'),
+    '#value' => t('Submit')
+  );
+  return $form;
+}
+
+function score_mentoring_request_form_submit($form, &$form_state) {
+  dpm($form_state);
+}
+
+
+/* Blocks */
+
+function score_block_info() {
+  $blocks = array();
+  $blocks['nearest_chapter'] = array(
+    'info' => t('Nearest Chapter Search Form'),
+  );
+  $blocks['mentoring_request_search_block'] = array(
+    'info' => t('Mentor Request Search Block'),
+  );
+
+  return $blocks;
+}
+
+function score_block_view($delta = '') {
+  $block = array();
+
+  switch ($delta) {
+    case 'nearest_chapter' :
+      $block['content'] = score_nearest_chapter_block();
+    break;
+    case 'mentoring_request_search_block' :
+      $block['content'] = 'Mentoring Request Search Block Placeholder';
+    break;
+  }
+
+  return $block;
+}
+
+function score_nearest_chapter_block() {
+  return drupal_get_form('score_nearest_chapter_form');
+}
+
+function score_nearest_chapter_form($form, &$form_state) {
+  $form = array();
+  $form['address'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Get Free Business Advice Near You:'),
+    '#size' => 20,
+    '#required' => TRUE,
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Go'),
+  );
+
+  return $form;
+}
+
+function score_nearest_chapter_form_validate($form, &$form_state) {
+  $address = $form_state['values']['address'];
+  if (!empty($address) && !_score_validate_address($address)) {
+    form_set_error('address', t('Invalid address placed or address is outside of SCORE scope.'));
+  }
+}
+
+function score_nearest_chapter_form_submit($form, &$form_state) {
+  $address = $form_state['values']['address'];
+  $chapter_nid = _score_get_nearest_chapter_id($address);
+  $redirect = (FALSE === empty($chapter_nid)) ? 'mentoring/request/0/' . $chapter_nid : 'mentoring/request';
+  drupal_goto($redirect);
+}
+
+
+/* Nodeapis */
+function score_node_insert($node) {
+  if ($node->type === 'chapter') {
+    _score_chapter_upsert($node);
+  }
+}
+
+function score_node_update($node) {
+  if ($node->type === 'chapter') {
+    _score_chapter_upsert($node);
+  }
+}
+
+function _score_validate_address($address) {
+  $point = geocoder('google', $address);
+  foreach ($point->data['geocoder_address_components'] as $component) {
+    if ($component->types[0] == 'country' && $component->short_name == 'US') {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+function _score_get_nearest_chapter_id($address) {
+  $view = views_get_view('geoip_chapter_lookup');
+  $view->init_display();
+  $view->set_exposed_input(array('field_chapter_geo_latlon' => $address));
+  $view->pre_execute();
+  $view->execute();
+
+  return $view->result[0]->entity;
+}
+
+
+
+include_once('score.core.inc');

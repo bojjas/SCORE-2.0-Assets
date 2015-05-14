@@ -1,0 +1,6 @@
+name = SCORE Mods
+description = SCORE CORE 2.0 Mods
+core = 7.x
+package = SCORE
+version = 7.x-1.0-alpha1
+project = powerstorm
