@@ -1,0 +1,28 @@
+You can turn on context debug under context settings (admin/structure/context/settings) - checkbox 'Enable debug reaction on all contexts'.
+
+It will output debug messages for every event, condition, and reaction. This could help you determine what keeps reloading the page.
+
+http://score.org/node/14, http://ois.score.org
+http://www.score.org/node/14, http://ois.score.org
+http://www.score.org/node/14/add, http://ois.score.org/add
+http://www.score.org/node/14/edit, http://ois.score.org/edit
+http://www.score.org/node/14/delete, http://ois.score.org/delete
+http://www.score.org/14, http://ois.score.org
+http://www.score.org/chapter/14, http://ois.score.org
+http://www.score.org/chapter/14/add, http://ois.score.org/add
+http://www.score.org/chapter/14/edit, http://ois.score.org/edit
+http://www.score.org/chapter/14/delete, http://ois.score.org/delete
+
+How to deal with legacy, if the user already had a bookmark with current, do we need to redirect ?.
+
+
+
+http://www.slideshare.net/AdolfoNasol/drupal-debugging-tips
+http://www.slideshare.net/AcquiaInc/tools-and-tricks-for-troubleshooting-drupal?related=1
+http://www.slideshare.net/jonlee554/setting-up-a-debugging-environment-for-drupal?related=1
+http://nodeone.se/en/organic-groups-and-creating-multi-site-solutions
+http://www.bluespark.com/blog/architecting-multi-country-site-drupal-7
+http://stackoverflow.com/questions/3509116/purl-and-or-spaces
+http://affinitybridge.com/blog/drupal-context-module-abridged
+
+
